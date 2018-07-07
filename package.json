@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "index": "node build/src/index.js",
-    "buildindex": "npm run build && npm run index"
+    "buildindex": "npm run build && npm run index",
+    "bundle": "npm run build && browserify build/src/web.js -o bundle.js"
   },
   "author": "aptennap@gmail.com",
   "license": "ISC",
