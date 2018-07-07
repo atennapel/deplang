@@ -429,10 +429,23 @@ const terms_1 = require("./terms");
 const names_1 = require("./names");
 const reduction_1 = require("./reduction");
 const ctx = context_1.toNamelessContext([
+    context_1.cvar(names_1.str('Void'), terms_1.universe(0)),
+    context_1.cvar(names_1.str('void'), terms_1.pis([[names_1.str('t'), terms_1.universe(0)], [names_1.str('x'), terms_1.free(names_1.str('Void'))]], terms_1.free(names_1.str('t')))),
     context_1.cvar(names_1.str('Unit'), terms_1.universe(0)),
     context_1.cvar(names_1.str('unit'), terms_1.free(names_1.str('Unit'))),
+    context_1.cvar(names_1.str('Bool'), terms_1.universe(0)),
+    context_1.cvar(names_1.str('true'), terms_1.free(names_1.str('Bool'))),
+    context_1.cvar(names_1.str('false'), terms_1.free(names_1.str('Bool'))),
+    context_1.cvar(names_1.str('if'), terms_1.pis([
+        [names_1.str('t'), terms_1.universe(0)],
+        [names_1.str('c'), terms_1.free(names_1.str('Bool'))],
+        [names_1.str('a'), terms_1.free(names_1.str('t'))],
+        [names_1.str('b'), terms_1.free(names_1.str('t'))]
+    ], terms_1.free(names_1.str('t')))),
 ]);
 function run(s, cb) {
+    if (s === ':help')
+        return cb('WIP');
     try {
         console.log(s);
         const t = terms_1.toNameless(parser_1.parse(s));
