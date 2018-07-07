@@ -17,21 +17,6 @@ import {
 import { reduce } from './reduction';
 
 const ctx: Context = toNamelessContext([
-  cvar(str('Void'), universe(0)),
-  cvar(str('void'), pis([[str('t'), universe(0)], [str('x'), free(str('Void'))]], free(str('t')))),
-
-  cvar(str('Unit'), universe(0)),
-  cvar(str('unit'), free(str('Unit'))),
-
-  cvar(str('Bool'), universe(0)),
-  cvar(str('true'), free(str('Bool'))),
-  cvar(str('false'), free(str('Bool'))),
-  cvar(str('if'), pis([
-    [str('t'), universe(0)],
-    [str('c'), free(str('Bool'))],
-    [str('a'), free(str('t'))],
-    [str('b'), free(str('t'))]
-  ], free(str('t')))),
 ]);
 
 export default function run(s: string, cb: (output: string, err?: boolean) => void): void {

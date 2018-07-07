@@ -7,6 +7,8 @@ import {
   isAbs,
   isApp,
   isAnno,
+  isVoid,
+  isElimVoid,
   freshIn,
   varOpen,
   close,
@@ -16,16 +18,16 @@ import {
   app,
   open,
   showTerm,
+  void_,
+  elimVoid,
 } from './terms';
 import { impossible } from './util';
 import { eqName } from './names';
 import { Context, findDef } from './context';
 
 export const reduce = (ctx: Context, t: Term): Term => {
-  // console.log(`reduce ${showTerm(t)}`);
+  console.log(`reduce ${showTerm(t)}`);
   if(isFree(t)) return findDef(ctx, t.name) || t;
-  if(isBound(t)) return t;
-  if(isUniverse(t)) return t;
   if(isPi(t)) {
     const x = freshIn(t.name, t.body);
     const body = close(x, reduce(ctx, varOpen(x, t.body)));
@@ -41,7 +43,7 @@ export const reduce = (ctx: Context, t: Term): Term => {
     return isAbs(left)? reduce(ctx, open(t.right, left.body)): app(left, reduce(ctx, t.right));
   }
   if(isAnno(t)) return reduce(ctx, t.term);
-  return impossible('reduce');
+  return t;
 };
 
 export const equivalent = (ctx: Context, a: Term, b: Term): boolean => equivalent_(reduce(ctx, a), reduce(ctx, b));
@@ -54,5 +56,7 @@ const equivalent_ = (a: Term, b: Term): boolean => {
   if(isAbs(a) && isAbs(b) && !a.type && !b.type) return equivalent_(a.body, b.body);
   if(isApp(a) && isApp(b)) return equivalent_(a.left, b.left) && equivalent_(a.right, b.right);
   if(isAnno(a) && isAnno(b)) return equivalent_(a.term, b.term) && equivalent_(a.type, b.type);
+  if(isVoid(a) && isVoid(b)) return true;
+  if(isElimVoid(a) && isElimVoid(b)) return equivalent_(a.term, b.term);
   return false;
 };

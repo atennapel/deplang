@@ -19,6 +19,10 @@ import {
   showTerm,
   isLocallyClosed,
   universe,
+  isVoid,
+  void_,
+  isElimVoid,
+  elimVoid,
 } from './terms';
 import {
   cvar,
@@ -81,6 +85,9 @@ const synth = (ctx: Context, t: Term): Term => {
     check(ctx, t.term, ty);
     return ty;
   }
+  if(isVoid(t)) {
+    return universe(0);
+  }
   return err(`cannot synth ${showTerm(t)} in ${showContext(ctx)}`);
 }
 
@@ -93,6 +100,10 @@ const check = (ctx: Context, t: Term, u: Term): null => {
   if(isAbs(t) && !t.type && isPi(u)) {
     const x = freshIn2(t.name, t.body, u.body);
     return check(append(ctx, [cvar(x, u.type)]), varOpen(x, t.body), varOpen(x, u.body));
+  }
+  if(isElimVoid(t)) {
+    check(ctx, t.term, void_);
+    return null;
   }
   const tt = synth(ctx, t);
   if(equivalent(ctx, tt, u)) return null;

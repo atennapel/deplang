@@ -1,4 +1,4 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const terms_1 = require("./terms");
@@ -229,7 +229,7 @@ function comesBefore(x, a, b) {
     return false;
 }
 function terms(x, stack = null, mode = null) {
-    // console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
+    // console.log(`exprs ${showRets(x)} ${stack && showTerm(stack)} ${mode}`);
     if (x.length === 0) {
         if (mode)
             throw new SyntaxError(`invalid use of ${mode}`);
@@ -244,6 +244,11 @@ function terms(x, stack = null, mode = null) {
     const head = x[0];
     if (isToken(head, ':'))
         throw new SyntaxError('invalid use of :');
+    if (isToken(head, 'elimVoid')) {
+        if (stack)
+            throw new SyntaxError('invalid use of elimVoid');
+        return terms(x.slice(1), null, 'elimVoid');
+    }
     if (isToken(head, '$')) {
         if (mode)
             throw new SyntaxError('invalid use of $');
@@ -339,6 +344,8 @@ function terms(x, stack = null, mode = null) {
         const abs = terms_1.pis(args, terms(rest));
         return stack ? terms_1.app(stack, abs) : abs;
     }
+    if (mode === 'elimVoid')
+        return terms(x.slice(1), terms_1.elimVoid(term(head)), null);
     if (stack) {
         return terms(x.slice(1), terms_1.app(stack, term(head)), mode);
     }
@@ -350,6 +357,8 @@ function term(x) {
     if (x.tag === 'token') {
         if (x.val === '$')
             return terms_1.free(names_1.str('app'));
+        if (x.val === 'Void')
+            return terms_1.void_;
         if (x.val.startsWith('Type')) {
             if (x.val.length === 4)
                 return terms_1.universe(0);
@@ -369,17 +378,12 @@ function term(x) {
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const terms_1 = require("./terms");
-const util_1 = require("./util");
 const names_1 = require("./names");
 const context_1 = require("./context");
 exports.reduce = (ctx, t) => {
-    // console.log(`reduce ${showTerm(t)}`);
+    console.log(`reduce ${terms_1.showTerm(t)}`);
     if (terms_1.isFree(t))
         return context_1.findDef(ctx, t.name) || t;
-    if (terms_1.isBound(t))
-        return t;
-    if (terms_1.isUniverse(t))
-        return t;
     if (terms_1.isPi(t)) {
         const x = terms_1.freshIn(t.name, t.body);
         const body = terms_1.close(x, exports.reduce(ctx, terms_1.varOpen(x, t.body)));
@@ -396,7 +400,7 @@ exports.reduce = (ctx, t) => {
     }
     if (terms_1.isAnno(t))
         return exports.reduce(ctx, t.term);
-    return util_1.impossible('reduce');
+    return t;
 };
 exports.equivalent = (ctx, a, b) => equivalent_(exports.reduce(ctx, a), exports.reduce(ctx, b));
 const equivalent_ = (a, b) => {
@@ -416,33 +420,22 @@ const equivalent_ = (a, b) => {
         return equivalent_(a.left, b.left) && equivalent_(a.right, b.right);
     if (terms_1.isAnno(a) && terms_1.isAnno(b))
         return equivalent_(a.term, b.term) && equivalent_(a.type, b.type);
+    if (terms_1.isVoid(a) && terms_1.isVoid(b))
+        return true;
+    if (terms_1.isElimVoid(a) && terms_1.isElimVoid(b))
+        return equivalent_(a.term, b.term);
     return false;
 };
 
-},{"./context":1,"./names":2,"./terms":6,"./util":8}],5:[function(require,module,exports){
+},{"./context":1,"./names":2,"./terms":6}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const parser_1 = require("./parser");
 const typechecker_1 = require("./typechecker");
 const context_1 = require("./context");
 const terms_1 = require("./terms");
-const names_1 = require("./names");
 const reduction_1 = require("./reduction");
-const ctx = context_1.toNamelessContext([
-    context_1.cvar(names_1.str('Void'), terms_1.universe(0)),
-    context_1.cvar(names_1.str('void'), terms_1.pis([[names_1.str('t'), terms_1.universe(0)], [names_1.str('x'), terms_1.free(names_1.str('Void'))]], terms_1.free(names_1.str('t')))),
-    context_1.cvar(names_1.str('Unit'), terms_1.universe(0)),
-    context_1.cvar(names_1.str('unit'), terms_1.free(names_1.str('Unit'))),
-    context_1.cvar(names_1.str('Bool'), terms_1.universe(0)),
-    context_1.cvar(names_1.str('true'), terms_1.free(names_1.str('Bool'))),
-    context_1.cvar(names_1.str('false'), terms_1.free(names_1.str('Bool'))),
-    context_1.cvar(names_1.str('if'), terms_1.pis([
-        [names_1.str('t'), terms_1.universe(0)],
-        [names_1.str('c'), terms_1.free(names_1.str('Bool'))],
-        [names_1.str('a'), terms_1.free(names_1.str('t'))],
-        [names_1.str('b'), terms_1.free(names_1.str('t'))]
-    ], terms_1.free(names_1.str('t')))),
-]);
+const ctx = context_1.toNamelessContext([]);
 function run(s, cb) {
     if (s === ':help')
         return cb('WIP');
@@ -462,7 +455,7 @@ function run(s, cb) {
 }
 exports.default = run;
 
-},{"./context":1,"./names":2,"./parser":3,"./reduction":4,"./terms":6,"./typechecker":7}],6:[function(require,module,exports){
+},{"./context":1,"./parser":3,"./reduction":4,"./terms":6,"./typechecker":7}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -492,6 +485,12 @@ exports.apps = (ts) => ts.reduce(exports.app);
 const ANNO = 'ANNO';
 exports.anno = (term, type) => ({ tag: ANNO, term, type });
 exports.isAnno = (term) => term.tag === ANNO;
+const VOID = 'VOID';
+exports.void_ = { tag: VOID };
+exports.isVoid = (term) => term.tag === VOID;
+const ELIM_VOID = 'ELIM_VOID';
+exports.elimVoid = (term) => ({ tag: ELIM_VOID, term });
+exports.isElimVoid = (term) => term.tag === ELIM_VOID;
 exports.flattenPi = (t) => {
     const r = [];
     let c = t;
@@ -521,6 +520,9 @@ exports.flattenApp = (t) => {
     return r.reverse();
 };
 const ARROW = ' -> ';
+const wrap = (t) => exports.isPi(t) || exports.isAbs(t) || exports.isApp(t) || exports.isElimVoid(t) || exports.isAnno(t) ?
+    `(${exports.showTerm(t)})` :
+    exports.showTerm(t);
 exports.showTerm = (t) => {
     if (exports.isFree(t))
         return names_1.showName(t.name);
@@ -536,21 +538,19 @@ exports.showTerm = (t) => {
         const f = exports.flattenAbs(t);
         return `\\${f.args.map(([x, t]) => t ? `(${names_1.showName(x)} : ${exports.showTerm(t)})` : names_1.showName(x)).join(' ')}${ARROW}${exports.showTerm(f.body)}`;
     }
-    if (exports.isApp(t)) {
-        const f = exports.flattenApp(t);
-        return f.map(t => exports.isPi(t) || exports.isAbs(t) || exports.isApp(t) ? `(${exports.showTerm(t)})` : exports.showTerm(t)).join(' ');
-    }
+    if (exports.isApp(t))
+        return exports.flattenApp(t).map(wrap).join(' ');
     if (exports.isAnno(t))
-        return `(${exports.showTerm(t.term)} : ${exports.showTerm(t.type)})`;
+        return `${exports.showTerm(t.term)} : ${exports.showTerm(t.type)}`;
+    if (exports.isVoid(t))
+        return `Void`;
+    if (exports.isElimVoid(t))
+        return `elimVoid ${wrap(t.term)}`;
     return util_1.impossible('showTerm');
 };
 exports.freeVars = (t) => {
     if (exports.isFree(t))
         return [t.name];
-    if (exports.isBound(t))
-        return [];
-    if (exports.isUniverse(t))
-        return [];
     if (exports.isPi(t))
         return exports.freeVars(t.type).concat(exports.freeVars(t.body));
     if (exports.isAbs(t))
@@ -559,17 +559,15 @@ exports.freeVars = (t) => {
         return exports.freeVars(t.left).concat(exports.freeVars(t.right));
     if (exports.isAnno(t))
         return exports.freeVars(t.term).concat(exports.freeVars(t.type));
-    return util_1.impossible('freeVars');
+    if (exports.isElimVoid(t))
+        return exports.freeVars(t.term);
+    return [];
 };
 exports.freshIn = (x, t) => names_1.fresh(exports.freeVars(t), x);
 exports.freshIn2 = (x, t, u) => names_1.fresh(exports.freeVars(t).concat(exports.freeVars(u)), x);
 exports.open = (u, t, k = 0) => {
-    if (exports.isFree(t))
-        return t;
     if (exports.isBound(t))
         return k === t.index ? u : t;
-    if (exports.isUniverse(t))
-        return t;
     if (exports.isPi(t))
         return exports.pi(t.name, exports.open(u, t.type, k), exports.open(u, t.body, k + 1));
     if (exports.isAbs(t))
@@ -577,17 +575,15 @@ exports.open = (u, t, k = 0) => {
     if (exports.isApp(t))
         return exports.app(exports.open(u, t.left, k), exports.open(u, t.right, k));
     if (exports.isAnno(t))
-        return exports.app(exports.open(u, t.term, k), exports.open(u, t.type, k));
-    return util_1.impossible('open');
+        return exports.anno(exports.open(u, t.term, k), exports.open(u, t.type, k));
+    if (exports.isElimVoid(t))
+        return exports.elimVoid(exports.open(u, t.term, k));
+    return t;
 };
 exports.varOpen = (n, t) => exports.open(exports.free(n), t);
 exports.close = (u, t, k = 0) => {
     if (exports.isFree(t))
         return names_1.eqName(u, t.name) ? exports.bound(k) : t;
-    if (exports.isBound(t))
-        return t;
-    if (exports.isUniverse(t))
-        return t;
     if (exports.isPi(t))
         return exports.pi(t.name, exports.close(u, t.type, k), exports.close(u, t.body, k + 1));
     if (exports.isAbs(t))
@@ -595,17 +591,15 @@ exports.close = (u, t, k = 0) => {
     if (exports.isApp(t))
         return exports.app(exports.close(u, t.left, k), exports.close(u, t.right, k));
     if (exports.isAnno(t))
-        return exports.app(exports.close(u, t.term, k), exports.close(u, t.type, k));
-    return util_1.impossible('close');
+        return exports.anno(exports.close(u, t.term, k), exports.close(u, t.type, k));
+    if (exports.isElimVoid(t))
+        return exports.elimVoid(exports.close(u, t.term, k));
+    return t;
 };
 exports.subst = (x, u, t) => exports.open(u, exports.close(x, t));
 exports.isLocallyClosed = (t, k = 0) => {
-    if (exports.isFree(t))
-        return true;
     if (exports.isBound(t))
         return t.index < k;
-    if (exports.isUniverse(t))
-        return true;
     if (exports.isPi(t))
         return exports.isLocallyClosed(t.type, k) && exports.isLocallyClosed(t.body, k + 1);
     if (exports.isAbs(t))
@@ -614,16 +608,12 @@ exports.isLocallyClosed = (t, k = 0) => {
         return exports.isLocallyClosed(t.left, k) && exports.isLocallyClosed(t.right, k);
     if (exports.isAnno(t))
         return exports.isLocallyClosed(t.term, k) && exports.isLocallyClosed(t.type, k);
-    return util_1.impossible('isLocallyClosed');
+    if (exports.isElimVoid(t))
+        return exports.isLocallyClosed(t.term, k);
+    return true;
 };
 exports.isClosed = (t) => exports.freeVars(t).length === 0;
 exports.toNameless = (t) => {
-    if (exports.isFree(t))
-        return t;
-    if (exports.isBound(t))
-        return t;
-    if (exports.isUniverse(t))
-        return t;
     if (exports.isPi(t))
         return exports.pi(t.name, exports.toNameless(t.type), exports.toNameless(exports.close(t.name, t.body)));
     if (exports.isAbs(t))
@@ -631,16 +621,14 @@ exports.toNameless = (t) => {
     if (exports.isApp(t))
         return exports.app(exports.toNameless(t.left), exports.toNameless(t.right));
     if (exports.isAnno(t))
-        return exports.app(exports.toNameless(t.term), exports.toNameless(t.type));
-    return util_1.impossible('toNameless');
+        return exports.anno(exports.toNameless(t.term), exports.toNameless(t.type));
+    if (exports.isElimVoid(t))
+        return exports.elimVoid(exports.toNameless(t.term));
+    return t;
 };
 exports.toNamed = (t) => {
-    if (exports.isFree(t))
-        return t;
     if (exports.isBound(t))
         throw new Error('bound variable in toNamed');
-    if (exports.isUniverse(t))
-        return t;
     if (exports.isPi(t))
         return exports.pi(t.name, exports.toNamed(t.type), exports.toNamed(exports.varOpen(t.name, t.body)));
     if (exports.isAbs(t))
@@ -648,8 +636,10 @@ exports.toNamed = (t) => {
     if (exports.isApp(t))
         return exports.app(exports.toNamed(t.left), exports.toNamed(t.right));
     if (exports.isAnno(t))
-        return exports.app(exports.toNamed(t.term), exports.toNamed(t.type));
-    return util_1.impossible('toNamed');
+        return exports.anno(exports.toNamed(t.term), exports.toNamed(t.type));
+    if (exports.isElimVoid(t))
+        return exports.elimVoid(exports.toNamed(t.term));
+    return t;
 };
 
 },{"./names":2,"./util":8}],7:[function(require,module,exports){
@@ -711,6 +701,9 @@ const synth = (ctx, t) => {
         check(ctx, t.term, ty);
         return ty;
     }
+    if (terms_1.isVoid(t)) {
+        return terms_1.universe(0);
+    }
     return err(`cannot synth ${terms_1.showTerm(t)} in ${context_1.showContext(ctx)}`);
 };
 const check = (ctx, t, u) => {
@@ -724,6 +717,10 @@ const check = (ctx, t, u) => {
     if (terms_1.isAbs(t) && !t.type && terms_1.isPi(u)) {
         const x = terms_1.freshIn2(t.name, t.body, u.body);
         return check(context_1.append(ctx, [context_1.cvar(x, u.type)]), terms_1.varOpen(x, t.body), terms_1.varOpen(x, u.body));
+    }
+    if (terms_1.isElimVoid(t)) {
+        check(ctx, t.term, terms_1.void_);
+        return null;
     }
     const tt = synth(ctx, t);
     if (reduction_1.equivalent(ctx, tt, u))

@@ -7,6 +7,9 @@ import {
   app,
   apps,
   anno,
+  void_,
+  elimVoid,
+  showTerm,
 } from './terms';
 import {
   Name,
@@ -120,7 +123,7 @@ function comesBefore(x: Ret[], a: string, b: string) {
 }
 
 function terms(x: Ret[], stack: Term | null = null, mode: string | null = null): Term {
-  // console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
+  // console.log(`exprs ${showRets(x)} ${stack && showTerm(stack)} ${mode}`);
   if(x.length === 0) {
     if(mode) throw new SyntaxError(`invalid use of ${mode}`);
     return stack || free(str('Unit'));
@@ -133,6 +136,10 @@ function terms(x: Ret[], stack: Term | null = null, mode: string | null = null):
   }
   const head = x[0];
   if(isToken(head, ':')) throw new SyntaxError('invalid use of :');
+  if(isToken(head, 'elimVoid')) {
+    if(stack) throw new SyntaxError('invalid use of elimVoid');
+    return terms(x.slice(1), null, 'elimVoid');
+  }
   if(isToken(head, '$')) {
     if(mode) throw new SyntaxError('invalid use of $');
     if(!stack) return x.length < 2? free(str('app')): apps([free(str('flip')), free(str('app')), terms(x.slice(1))]);
@@ -200,6 +207,7 @@ function terms(x: Ret[], stack: Term | null = null, mode: string | null = null):
     const abs = pis(args, terms(rest));
     return stack? app(stack, abs): abs;
   }
+  if(mode === 'elimVoid') return terms(x.slice(1), elimVoid(term(head)), null);
   if(stack) {
     return terms(x.slice(1), app(stack, term(head)), mode);
   } else {
@@ -210,6 +218,7 @@ function terms(x: Ret[], stack: Term | null = null, mode: string | null = null):
 function term(x: Ret): Term {
   if(x.tag === 'token') {
     if(x.val === '$') return free(str('app'));
+    if(x.val === 'Void') return void_;
     if(x.val.startsWith('Type')) {
       if(x.val.length === 4) return universe(0);
       const i = +x.val.slice(4);
